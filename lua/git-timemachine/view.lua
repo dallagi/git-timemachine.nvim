@@ -53,7 +53,9 @@ local function setup_buffer(filetype)
 end
 
 function M.update_view()
-  if not M.state then return end
+  if not M.state then
+    error("GitTimeMachine: view called without active state")
+  end
   local revision = M.state.revisions[M.state.index]
   
   -- Fetch content
@@ -75,7 +77,9 @@ function M.update_view()
 end
 
 function M.prev_revision()
-  if not M.state then return end
+  if not M.state then
+    error("GitTimeMachine: prev_revision called without active state")
+  end
   if M.state.index < #M.state.revisions then
     M.state.index = M.state.index + 1
     M.update_view()
@@ -85,7 +89,9 @@ function M.prev_revision()
 end
 
 function M.next_revision()
-  if not M.state then return end
+  if not M.state then
+    error("GitTimeMachine: next_revision called without active state")
+  end
   if M.state.index > 1 then
     M.state.index = M.state.index - 1
     M.update_view()
@@ -95,7 +101,9 @@ function M.next_revision()
 end
 
 function M.show_commit_info()
-  if not M.state then return end
+  if not M.state then
+    error("GitTimeMachine: show_info called without active state")
+  end
   local revision = M.state.revisions[M.state.index]
   
   -- Native fallback
