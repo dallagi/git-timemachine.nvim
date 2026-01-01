@@ -23,6 +23,7 @@ function M.close()
     api.nvim_buf_delete(M.state.buffer, { force = true })
   end
   M.state = nil
+  vim.cmd("echo ''")
 end
 
 ---Create the scratch buffer and setup keymaps
