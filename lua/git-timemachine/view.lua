@@ -93,6 +93,46 @@ function M.next_revision()
   end
 end
 
+function M.show_commit_info()
+  if not M.state then return end
+  local revision = M.state.revisions[M.state.index]
+  
+  -- Native fallback
+  local content = git.show_info(revision.hash)
+  if not content then
+    print("Failed to get commit info")
+    return
+  end
+  
+  local buf = api.nvim_create_buf(false, true)
+  api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+  api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+  api.nvim_set_option_value("filetype", "git", { buf = buf })
+  api.nvim_buf_set_lines(buf, 0, -1, false, content)
+  
+  -- Calculate float size
+  local width = math.floor(vim.o.columns * 0.8)
+  local height = math.floor(vim.o.lines * 0.8)
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+  
+  local win = api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    title = " Commit Info: " .. revision.short_hash .. " ",
+    title_pos = "center"
+  })
+  
+  -- Close mapping
+  vim.keymap.set("n", "q", function() api.nvim_win_close(win, true) end, { buffer = buf })
+  vim.keymap.set("n", "<Esc>", function() api.nvim_win_close(win, true) end, { buffer = buf })
+end
+
 function M.start(filepath)
   if M.is_active() then M.close() end
   
@@ -108,6 +148,9 @@ function M.start(filepath)
   local buf = setup_buffer(filetype)
   api.nvim_set_current_buf(buf)
   api.nvim_set_option_value("cursorline", true, { scope = "local", win = 0 })
+  
+  -- Add Enter keymap
+  vim.keymap.set("n", "<CR>", M.show_commit_info, { buffer = buf, noremap = true, silent = true })
 
   M.state = {
     original_buf = original_buf,

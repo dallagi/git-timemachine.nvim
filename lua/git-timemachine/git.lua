@@ -104,4 +104,13 @@ function M.show_file(hash, filepath)
   return vim.split(stdout, "\n", { plain = true })
 end
 
+---Get detailed commit info
+---@param hash string
+---@return string[]? lines
+function M.show_info(hash)
+  local stdout, _ = git_exec({ "show", hash, "--stat", "--patch" })
+  if not stdout then return nil end
+  return vim.split(stdout, "\n", { plain = true })
+end
+
 return M
