@@ -1,0 +1,19 @@
+[tasks.format]
+description = "Format Lua files"
+run = "stylua ."
+
+[tasks.format-check]
+description = "Check Lua file formatting"
+run = "stylua --check ."
+
+[tasks.lint]
+description = "Lint Lua files"
+run = "luacheck . --globals vim"
+
+[tasks.type-check]
+description = "Type check Lua files"
+run = "lua-language-server --check ."
+
+[tasks.check]
+description = "Run all checks"
+depends = ["format-check", "lint", "type-check"]

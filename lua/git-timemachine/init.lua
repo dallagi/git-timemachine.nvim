@@ -1,4 +1,5 @@
 local M = {}
+local view = require("git-timemachine.view")
 
 function M.setup(_)
 	-- allow user config in the future
