@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: Homebrew/actions/setup-homebrew@master
+      - name: Install tools
+        run: brew install stylua luacheck lua-language-server
+      - name: Run checks
+        run: mise run check
