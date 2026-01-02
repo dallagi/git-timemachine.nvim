@@ -1,5 +1,11 @@
 local M = {}
 
+---@class DiffHunk
+---@field a_start integer
+---@field a_count integer
+---@field b_start integer
+---@field b_count integer
+
 ---@class Revision
 ---@field hash string Full commit hash
 ---@field short_hash string Short commit hash
@@ -17,6 +23,25 @@ local function git_exec(args)
 		return nil, obj.stderr
 	end
 	return obj.stdout, nil
+end
+
+local function get_repo_root()
+	local root_obj = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true }):wait()
+	if root_obj.code ~= 0 then
+		return nil
+	end
+	return root_obj.stdout:gsub("\n", "")
+end
+
+local function get_rel_path(filepath)
+	local root = get_repo_root()
+	if not root then
+		return filepath
+	end
+	if filepath:sub(1, #root) == root then
+		return filepath:sub(#root + 2)
+	end
+	return filepath
 end
 
 ---Get git history for a file
@@ -78,15 +103,7 @@ function M.show_file(hash, filepath)
 	-- `git show <hash>:<path>` is the blob content.
 
 	-- Let's try to get the relative path first.
-	local rel_path = filepath
-	local root_obj = vim.system({ "git", "rev-parse", "--show-toplevel" }, { text = true }):wait()
-	if root_obj.code == 0 then
-		local root = root_obj.stdout:gsub("\n", "")
-		-- Simple check if filepath starts with root
-		if filepath:sub(1, #root) == root then
-			rel_path = filepath:sub(#root + 2) -- +2 for trailing slash and start index
-		end
-	end
+	local rel_path = get_rel_path(filepath)
 
 	local stdout, _ = git_exec({ "show", hash .. ":" .. rel_path })
 	if not stdout then
@@ -113,6 +130,47 @@ function M.show_info(hash)
 		return nil
 	end
 	return vim.split(stdout, "\n", { plain = true })
+end
+
+---@param a_rev string|nil
+---@param b_rev string|nil
+---@param filepath string
+---@return DiffHunk[]
+function M.get_diff_hunks(a_rev, b_rev, filepath)
+	local rel_path = get_rel_path(filepath)
+	local args = { "diff", "--no-color", "--unified=0" }
+	if a_rev and b_rev then
+		table.insert(args, a_rev)
+		table.insert(args, b_rev)
+	elseif a_rev then
+		table.insert(args, a_rev)
+	end
+	table.insert(args, "--")
+	table.insert(args, rel_path)
+
+	local stdout, _ = git_exec(args)
+	if not stdout then
+		return {}
+	end
+
+	local hunks = {}
+	for line in stdout:gmatch("[^\r\n]+") do
+		local a_start, a_count, b_start, b_count = line:match("^@@%s%-(%d+),?(%d*)%s%+(%d+),?(%d*)%s@@")
+		if a_start then
+			local a_num = tonumber(a_start)
+			local a_len = tonumber(a_count) or 1
+			local b_num = tonumber(b_start)
+			local b_len = tonumber(b_count) or 1
+			table.insert(hunks, {
+				a_start = a_num,
+				a_count = a_len,
+				b_start = b_num,
+				b_count = b_len,
+			})
+		end
+	end
+
+	return hunks
 end
 
 return M

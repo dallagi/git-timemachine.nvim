@@ -10,9 +10,83 @@ local M = {}
 ---@field index integer
 ---@field filepath string
 ---@field filetype string
+---@field cursor_line integer
+---@field cursor_col integer
+---@field view_offset integer
+---@field view_leftcol integer
 
 ---@type State|nil
 M.state = nil
+
+local function invert_hunks(hunks)
+	local inverted = {}
+	for _, hunk in ipairs(hunks) do
+		table.insert(inverted, {
+			a_start = hunk.b_start,
+			a_count = hunk.b_count,
+			b_start = hunk.a_start,
+			b_count = hunk.a_count,
+		})
+	end
+	table.sort(inverted, function(a, b)
+		return a.a_start < b.a_start
+	end)
+	return inverted
+end
+
+local function map_line_with_hunks(line, hunks)
+	local mapped = line
+	for _, hunk in ipairs(hunks) do
+		if hunk.a_count == 0 then
+			if line >= hunk.a_start then
+				mapped = mapped + hunk.b_count
+			end
+		else
+			local a_end = hunk.a_start + hunk.a_count - 1
+			if line < hunk.a_start then
+				break
+			elseif line > a_end then
+				mapped = mapped + (hunk.b_count - hunk.a_count)
+			else
+				if hunk.b_count == 0 then
+					mapped = hunk.b_start
+				else
+					local offset = line - hunk.a_start
+					local capped = math.min(offset, hunk.b_count - 1)
+					mapped = hunk.b_start + capped
+				end
+				break
+			end
+		end
+	end
+	return math.max(1, mapped)
+end
+
+local function capture_view_state()
+	local cursor = api.nvim_win_get_cursor(0)
+	local view = vim.fn.winsaveview()
+	local topline = view.topline or 1
+	return {
+		line = cursor[1],
+		col = cursor[2],
+		offset = math.max(0, cursor[1] - topline),
+		leftcol = view.leftcol or 0,
+	}
+end
+
+local function apply_view_state(line, col, offset, leftcol)
+	local buf = M.state.buffer
+	local max_line = api.nvim_buf_line_count(buf)
+	local clamped_line = math.max(1, math.min(line, max_line))
+	local topline = math.max(1, clamped_line - (offset or 0))
+	vim.fn.winrestview({
+		lnum = clamped_line,
+		col = math.max(0, col or 0),
+		topline = topline,
+		leftcol = leftcol or 0,
+	})
+	return clamped_line
+end
 
 function M.is_active()
 	return M.state ~= nil
@@ -81,6 +155,15 @@ function M.update_view()
 			revision.date
 		)
 	)
+
+	if M.state.cursor_line then
+		M.state.cursor_line = apply_view_state(
+			M.state.cursor_line,
+			M.state.cursor_col,
+			M.state.view_offset,
+			M.state.view_leftcol
+		)
+	end
 end
 
 function M.prev_revision()
@@ -88,7 +171,17 @@ function M.prev_revision()
 		error("GitTimeMachine: prev_revision called without active state")
 	end
 	if M.state.index < #M.state.revisions then
+		local view_state = capture_view_state()
+		M.state.cursor_line = view_state.line
+		M.state.cursor_col = view_state.col
+		M.state.view_offset = view_state.offset
+		M.state.view_leftcol = view_state.leftcol
+
+		local from_hash = M.state.revisions[M.state.index].hash
 		M.state.index = M.state.index + 1
+		local to_hash = M.state.revisions[M.state.index].hash
+		local hunks = git.get_diff_hunks(from_hash, to_hash, M.state.filepath)
+		M.state.cursor_line = map_line_with_hunks(M.state.cursor_line, hunks)
 		M.update_view()
 	else
 		print("No older revisions")
@@ -100,7 +193,17 @@ function M.next_revision()
 		error("GitTimeMachine: next_revision called without active state")
 	end
 	if M.state.index > 1 then
+		local view_state = capture_view_state()
+		M.state.cursor_line = view_state.line
+		M.state.cursor_col = view_state.col
+		M.state.view_offset = view_state.offset
+		M.state.view_leftcol = view_state.leftcol
+
+		local from_hash = M.state.revisions[M.state.index].hash
 		M.state.index = M.state.index - 1
+		local to_hash = M.state.revisions[M.state.index].hash
+		local hunks = git.get_diff_hunks(from_hash, to_hash, M.state.filepath)
+		M.state.cursor_line = map_line_with_hunks(M.state.cursor_line, hunks)
 		M.update_view()
 	else
 		print("No newer revisions")
@@ -165,6 +268,7 @@ function M.start(filepath)
 	end
 
 	local original_buf = api.nvim_get_current_buf()
+	local original_view = capture_view_state()
 	local filetype = api.nvim_get_option_value("filetype", { buf = original_buf })
 
 	local buf = setup_buffer(filetype)
@@ -181,7 +285,17 @@ function M.start(filepath)
 		index = 1, -- Start at latest revision (index 1 is latest in our list usually, git log order)
 		filepath = filepath,
 		filetype = filetype,
+		cursor_line = original_view.line,
+		cursor_col = original_view.col,
+		view_offset = original_view.offset,
+		view_leftcol = original_view.leftcol,
 	}
+
+	local head_hunks = git.get_diff_hunks("HEAD", nil, filepath)
+	if #head_hunks > 0 then
+		local inverted = invert_hunks(head_hunks)
+		M.state.cursor_line = map_line_with_hunks(M.state.cursor_line, inverted)
+	end
 
 	M.update_view()
 end
