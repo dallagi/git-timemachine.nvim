@@ -203,7 +203,7 @@ function M.update_view()
 
 	-- Update echo area/status
 	local max_width = math.max(1, vim.o.columns - 12)
-	local prefix = string.format("[%d/%d] %s: ", M.state.index, #M.state.revisions, revision.short_hash)
+	local prefix = string.format("[%d/%d] ", M.state.index, #M.state.revisions)
 	local suffix = string.format(" (%s)", revision.date)
 	local available = max_width - vim.fn.strdisplaywidth(prefix) - vim.fn.strdisplaywidth(suffix)
 	available = math.max(0, available)
