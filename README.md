@@ -4,6 +4,8 @@ Neovim plugin to traverse the git history of a file.
 
 Inspired by the `git-timemachine` package for Emacs.
 
+![git-timemachine.nvim demo](demo.svg)
+
 ## Installation
 
 Using [lazy.nvim](https://github.com/folke/lazy.nvim):
