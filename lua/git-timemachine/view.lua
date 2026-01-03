@@ -3,49 +3,34 @@ local git = require("git-timemachine.git")
 
 local M = {}
 
+-- NOTE: width != codepoints; use screen-width trimming for tabs/emoji/CJK.
 local function truncate_echo(message, max_width)
-	if max_width <= 0 then
-		return ""
+	if max_width < 0 then
+		error("GitTimeMachine: max_width must be non-negative")
 	end
-	if vim.fn.strdisplaywidth(message) <= max_width then
+	if vim.api.nvim_strwidth(message) <= max_width then
 		return message
 	end
-	local ellipsis = "..."
-	local ellipsis_width = vim.fn.strdisplaywidth(ellipsis)
-	if max_width <= ellipsis_width then
-		local lo = 0
-		local hi = vim.fn.strchars(message)
-		while lo < hi do
-			local mid = math.floor((lo + hi + 1) / 2)
-			local slice = vim.fn.strcharpart(message, 0, mid)
-			if vim.fn.strdisplaywidth(slice) <= max_width then
-				lo = mid
-			else
-				hi = mid - 1
-			end
-		end
-		return vim.fn.strcharpart(message, 0, lo)
+	if max_width <= 3 then
+		return ("..."):sub(1, max_width)
 	end
-	local target = math.max(0, max_width - ellipsis_width)
-	local lo = 0
-	local hi = vim.fn.strchars(message)
-	while lo < hi do
-		local mid = math.floor((lo + hi + 1) / 2)
-		local slice = vim.fn.strcharpart(message, 0, mid)
-		if vim.fn.strdisplaywidth(slice) <= target then
-			lo = mid
-		else
-			hi = mid - 1
+
+	local target = max_width - 3
+	local length = vim.str_utfindex(message)
+	while length > 0 do
+		local byte_index = vim.str_byteindex(message, length)
+		local trimmed = message:sub(1, byte_index)
+		if vim.api.nvim_strwidth(trimmed) <= target then
+			return trimmed .. "..."
 		end
+		length = length - 1
 	end
-	return vim.fn.strcharpart(message, 0, lo) .. ellipsis
+
+	return "..."
 end
 
-local function echo_status(message, opts)
-	local max_width = (opts and opts.max_width) or math.max(1, vim.o.columns - 12)
-	local should_truncate = not (opts and opts.truncate == false)
-	local text = should_truncate and truncate_echo(message, max_width) or message
-	vim.api.nvim_echo({ { text, "None" } }, false, {})
+local function echo_status(message)
+	vim.api.nvim_echo({ { message, "None" } }, false, {})
 end
 
 ---@class State
@@ -193,21 +178,10 @@ function M.update_view()
 	local max_width = math.max(1, vim.o.columns - 12)
 	local prefix = string.format("[%d/%d] %s: ", M.state.index, #M.state.revisions, revision.short_hash)
 	local suffix = string.format(" (%s)", revision.date)
-	local suffix_width = vim.fn.strdisplaywidth(suffix)
-	if suffix_width > max_width then
-		suffix = truncate_echo(suffix, max_width)
-		prefix = ""
-		echo_status(prefix .. suffix, { truncate = false, max_width = max_width })
-	else
-		local available = max_width - vim.fn.strdisplaywidth(prefix) - suffix_width
-		if available < 0 then
-			prefix = truncate_echo(prefix, math.max(0, max_width - suffix_width))
-			echo_status(prefix .. suffix, { truncate = false, max_width = max_width })
-		else
-			local subject = truncate_echo(revision.subject, available)
-			echo_status(prefix .. subject .. suffix, { truncate = false, max_width = max_width })
-		end
-	end
+	local available = max_width - vim.fn.strdisplaywidth(prefix) - vim.fn.strdisplaywidth(suffix)
+	available = math.max(0, available)
+	local subject = truncate_echo(revision.subject, available)
+	echo_status(prefix .. subject .. suffix)
 
 	if M.state.cursor_line then
 		M.state.cursor_line =
