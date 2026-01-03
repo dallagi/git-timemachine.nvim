@@ -3,6 +3,10 @@ local git = require("git-timemachine.git")
 
 local M = {}
 
+---Truncate a message to a screen width and append "...".
+---@param message string
+---@param max_width integer
+---@return string
 -- NOTE: width != codepoints; use screen-width trimming for tabs/emoji/CJK.
 local function truncate_echo(message, max_width)
 	if max_width < 0 then
@@ -29,6 +33,8 @@ local function truncate_echo(message, max_width)
 	return "..."
 end
 
+---Echo a status message without truncation.
+---@param message string
 local function echo_status(message)
 	vim.api.nvim_echo({ { message, "None" } }, false, {})
 end
@@ -48,6 +54,9 @@ end
 ---@type State|nil
 M.state = nil
 
+---Invert diff hunks to map from old to new lines.
+---@param hunks DiffHunk[]
+---@return DiffHunk[]
 local function invert_hunks(hunks)
 	local inverted = {}
 	for _, hunk in ipairs(hunks) do
@@ -64,6 +73,10 @@ local function invert_hunks(hunks)
 	return inverted
 end
 
+---Map a line number across diff hunks.
+---@param line integer
+---@param hunks DiffHunk[]
+---@return integer
 local function map_line_with_hunks(line, hunks)
 	local mapped = line
 	for _, hunk in ipairs(hunks) do
@@ -92,6 +105,8 @@ local function map_line_with_hunks(line, hunks)
 	return math.max(1, mapped)
 end
 
+---Capture cursor and view offsets for later restoration.
+---@return { line: integer, col: integer, offset: integer, leftcol: integer }
 local function capture_view_state()
 	local cursor = api.nvim_win_get_cursor(0)
 	local view = vim.fn.winsaveview()
@@ -104,6 +119,12 @@ local function capture_view_state()
 	}
 end
 
+---Restore view state and clamp the cursor within buffer bounds.
+---@param line integer
+---@param col integer
+---@param offset integer
+---@param leftcol integer
+---@return integer
 local function apply_view_state(line, col, offset, leftcol)
 	local buf = M.state.buffer
 	local max_line = api.nvim_buf_line_count(buf)
@@ -118,10 +139,13 @@ local function apply_view_state(line, col, offset, leftcol)
 	return clamped_line
 end
 
+---Check whether GitTimeMachine is active.
+---@return boolean
 function M.is_active()
 	return M.state ~= nil
 end
 
+---Close the GitTimeMachine buffer and reset state.
 function M.close()
 	if M.state and api.nvim_buf_is_valid(M.state.buffer) then
 		api.nvim_buf_delete(M.state.buffer, { force = true })
@@ -130,7 +154,9 @@ function M.close()
 	vim.cmd("echo ''")
 end
 
----Create the scratch buffer and setup keymaps
+---Create the scratch buffer and setup keymaps.
+---@param filetype string
+---@return integer
 local function setup_buffer(filetype)
 	local buf = api.nvim_create_buf(false, true) -- listed=false, scratch=true
 	api.nvim_set_option_value("filetype", filetype, { buf = buf })
@@ -156,6 +182,7 @@ local function setup_buffer(filetype)
 	return buf
 end
 
+---Render the current revision contents and status line.
 function M.update_view()
 	if not M.state then
 		error("GitTimeMachine: view called without active state")
@@ -189,6 +216,7 @@ function M.update_view()
 	end
 end
 
+---Move to the previous (older) revision.
 function M.prev_revision()
 	if not M.state then
 		error("GitTimeMachine: prev_revision called without active state")
@@ -211,6 +239,7 @@ function M.prev_revision()
 	end
 end
 
+---Move to the next (newer) revision.
 function M.next_revision()
 	if not M.state then
 		error("GitTimeMachine: next_revision called without active state")
@@ -233,6 +262,7 @@ function M.next_revision()
 	end
 end
 
+---Open a floating window with commit info for the current revision.
 function M.show_commit_info()
 	if not M.state then
 		error("GitTimeMachine: show_info called without active state")
@@ -279,6 +309,8 @@ function M.show_commit_info()
 	end, { buffer = buf })
 end
 
+---Start GitTimeMachine for a filepath.
+---@param filepath string
 function M.start(filepath)
 	if M.is_active() then
 		M.close()
