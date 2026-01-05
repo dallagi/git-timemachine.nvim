@@ -1,10 +1,6 @@
 local M = {}
 local view = require("git-timemachine.view")
 
-function M.setup(_)
-	-- allow user config in the future
-end
-
 function M.toggle()
 	if view.is_active() then
 		view.close()

@@ -47,7 +47,6 @@ end
 ---@field revisions Revision[]
 ---@field index integer
 ---@field filepath string
----@field filetype string
 ---@field cursor_line integer
 ---@field cursor_col integer
 ---@field view_offset integer
@@ -155,7 +154,12 @@ function M.close()
 		local original_view = M.state.original_view
 		local tm_buf = M.state.buffer
 
-		if original_win and api.nvim_win_is_valid(original_win) and original_buf and api.nvim_buf_is_valid(original_buf) then
+		if
+			original_win
+			and api.nvim_win_is_valid(original_win)
+			and original_buf
+			and api.nvim_buf_is_valid(original_buf)
+		then
 			api.nvim_win_set_buf(original_win, original_buf)
 			if original_view then
 				api.nvim_win_call(original_win, function()
@@ -361,7 +365,6 @@ function M.start(filepath)
 		revisions = revisions,
 		index = 1, -- Start at latest revision (index 1 is latest in our list usually, git log order)
 		filepath = filepath,
-		filetype = filetype,
 		cursor_line = original_state.line,
 		cursor_col = original_state.col,
 		view_offset = original_state.offset,

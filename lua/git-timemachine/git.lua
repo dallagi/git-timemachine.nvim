@@ -11,7 +11,6 @@ local M = {}
 ---@field short_hash string Short commit hash
 ---@field subject string Commit subject
 ---@field date string Relative date
----@field author string Author name
 
 ---Execute a git command and return the output
 ---@param args string[]
@@ -53,9 +52,8 @@ function M.get_history(filepath)
 	-- %H: commit hash
 	-- %h: abbreviated commit hash
 	-- %cr: committer date, relative
-	-- %an: author name
 	-- %s: subject
-	local format = "%H\t%h\t%cr\t%an\t%s"
+	local format = "%H\t%h\t%cr\t%s"
 	local stdout, _ = git_exec({ "log", "--pretty=format:" .. format, "--", filepath })
 
 	if not stdout then
@@ -64,13 +62,12 @@ function M.get_history(filepath)
 
 	local history = {}
 	for line in stdout:gmatch("[^\r\n]+") do
-		local hash, short_hash, date, author, subject = line:match("([^\t]+)\t([^\t]+)\t([^\t]+)\t([^\t]+)\t(.*)")
+		local hash, short_hash, date, subject = line:match("([^\t]+)\t([^\t]+)\t([^\t]+)\t(.*)")
 		if hash then
 			table.insert(history, {
 				hash = hash,
 				short_hash = short_hash,
 				date = date,
-				author = author,
 				subject = subject,
 			})
 		end
@@ -111,13 +108,6 @@ function M.show_file(hash, filepath)
 		return nil
 	end
 
-	local lines = {}
-	for line in stdout:gmatch("([^\r\n]*)\r?\n?") do
-		table.insert(lines, line)
-	end
-	-- The loop above adds an empty string at the end if the file ends with newline,
-	-- or might behave slightly differently. passing lines to nvim_buf_set_lines prefers a list.
-	-- vim.split is safer.
 	return vim.split(stdout, "\n", { plain = true })
 end
 
