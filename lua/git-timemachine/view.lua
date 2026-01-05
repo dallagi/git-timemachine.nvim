@@ -41,6 +41,8 @@ end
 
 ---@class State
 ---@field original_buf integer
+---@field original_win integer
+---@field original_view table
 ---@field buffer integer
 ---@field revisions Revision[]
 ---@field index integer
@@ -147,8 +149,24 @@ end
 
 ---Close the GitTimeMachine buffer and reset state.
 function M.close()
-	if M.state and api.nvim_buf_is_valid(M.state.buffer) then
-		api.nvim_buf_delete(M.state.buffer, { force = true })
+	if M.state then
+		local original_win = M.state.original_win
+		local original_buf = M.state.original_buf
+		local original_view = M.state.original_view
+		local tm_buf = M.state.buffer
+
+		if original_win and api.nvim_win_is_valid(original_win) and original_buf and api.nvim_buf_is_valid(original_buf) then
+			api.nvim_win_set_buf(original_win, original_buf)
+			if original_view then
+				api.nvim_win_call(original_win, function()
+					vim.fn.winrestview(original_view)
+				end)
+			end
+		end
+
+		if tm_buf and api.nvim_buf_is_valid(tm_buf) then
+			api.nvim_buf_delete(tm_buf, { force = true })
+		end
 	end
 	M.state = nil
 	vim.cmd("echo ''")
@@ -323,7 +341,9 @@ function M.start(filepath)
 	end
 
 	local original_buf = api.nvim_get_current_buf()
-	local original_view = capture_view_state()
+	local original_win = api.nvim_get_current_win()
+	local original_view = vim.fn.winsaveview()
+	local original_state = capture_view_state()
 	local filetype = api.nvim_get_option_value("filetype", { buf = original_buf })
 
 	local buf = setup_buffer(filetype)
@@ -335,15 +355,17 @@ function M.start(filepath)
 
 	M.state = {
 		original_buf = original_buf,
+		original_win = original_win,
+		original_view = original_view,
 		buffer = buf,
 		revisions = revisions,
 		index = 1, -- Start at latest revision (index 1 is latest in our list usually, git log order)
 		filepath = filepath,
 		filetype = filetype,
-		cursor_line = original_view.line,
-		cursor_col = original_view.col,
-		view_offset = original_view.offset,
-		view_leftcol = original_view.leftcol,
+		cursor_line = original_state.line,
+		cursor_col = original_state.col,
+		view_offset = original_state.offset,
+		view_leftcol = original_state.leftcol,
 	}
 
 	local head_hunks = git.get_diff_hunks("HEAD", nil, filepath)
