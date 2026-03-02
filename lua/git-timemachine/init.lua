@@ -10,8 +10,6 @@ function M.toggle()
 			print("Buffer has no file path")
 			return
 		end
-		-- Ideally, check if file is git tracked?
-		-- get_history handles it (returns empty list if not tracked usually, or errors)
 		view.start(filepath)
 	end
 end

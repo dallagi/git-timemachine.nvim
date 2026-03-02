@@ -80,31 +80,10 @@ end
 ---@param filepath string
 ---@return string[]? lines
 function M.show_file(hash, filepath)
-	-- git show hash:filepath
-	-- Note: filepath needs to be relative to the git root for git show usually,
-	-- or we rely on git to figure it out depending on CWD.
-	-- To be safe, we might need to get the relative path or run from root.
-	-- For now, let's assume git handles absolute paths if we are in the repo, or we strip it.
-	-- Actually `git show hash:absolute_path` often fails.
-	-- We should get the relative path relative to the git root.
-
-	-- Assuming CWD is inside the repo, we can try using the path as is or `cat-file -p` or similar?
-	-- Simplest is `git show hash:./relative_path` or similar.
-	-- Let's stick to `git show hash:path` and see if `git` complains about absolute.
-	-- If it does, we'll need to resolve relative path.
-
-	-- Better approach: `git show <hash>:<path>` works if path is relative to root.
-	-- We can use `git ls-files --full-name <path>` to get the path relative to root?
-	-- Or just `git show <hash> -- <path>` ?
-	-- `git show` with `--` shows the log/diff usually.
-	-- `git show <hash>:<path>` is the blob content.
-
-	-- Let's try to get the relative path first.
 	local rel_path = get_rel_path(filepath)
 
 	local stdout, _ = git_exec({ "show", hash .. ":" .. rel_path })
 	if not stdout then
-		-- Fallback or error handling
 		return nil
 	end
 
